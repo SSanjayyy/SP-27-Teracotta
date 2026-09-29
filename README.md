@@ -1,31 +1,23 @@
-# OwlTech File Manager — CS 3502 Project 3
+# SP-27 — SYNCD
 
-## Requirements
-- Python 3.10+ (uses `tuple[bool, str]` type hint syntax)
-- No external packages needed — only stdlib (`tkinter`, `os`, `shutil`, `stat`, `pathlib`)
+A Spotify-inspired music app, built for CS 4850 (Fall 2026).
 
-## Run
+## Frontend
+
+The React (Vite) frontend prototype lives in [`syncd-app/`](./syncd-app) —
+a Midnight + Electric Blue–themed UI covering Login/Register, Home, Search,
+Library, Playlist view, Now Playing, Identify (Shazam-style), Listening
+Habits, and Account/Subscription screens, running on mock data.
+
 ```bash
-python file_manager.py
+cd syncd-app
+npm install
+npm run dev
 ```
 
-## Features (all required CRUD ops)
-| Operation  | How                              |
-|------------|----------------------------------|
-| CREATE     | "+ File" button or right-click   |
-| READ       | Double-click file, or "View/Edit"|
-| UPDATE     | Edit in right panel → 💾 Save    |
-| DELETE     | 🗑 Delete button (with confirm)  |
-| RENAME     | ✏ Rename button                  |
-| NAVIGATE   | Double-click folder, Up / Home   |
-| MKDIR      | "+ Dir" button                   |
-| COPY       | 📋 Copy button → pick destination|
-| PROPERTIES | ℹ Props button (inode, perms, timestamps) |
+See [`syncd-app/README.md`](./syncd-app/README.md) for the full project
+structure and what's real vs. simulated.
 
-## OS Concepts Demonstrated
-- **File Descriptors**: every open/read/write/close explicitly commented
-- **Inodes**: stat() metadata shown in Properties dialog
-- **Directory traversal**: scandir() wrapping opendir/readdir
-- **Atomic rename**: os.rename() → rename() syscall
-- **Permission checks**: os.access() before every write op
-- **Error mapping**: EACCES, ENOENT, EEXIST, ENOTEMPTY all handled with user-friendly messages
+## Team
+
+CS 4850, Section 01 — Maurice McKay, Donalthea Drysdale, Noor Muhammad, Sanjay Ravikumar
