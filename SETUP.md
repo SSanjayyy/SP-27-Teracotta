@@ -57,6 +57,18 @@ git push
 | `npx expo-doctor` | Check the project for version/config problems |
 | `npx expo install <package>` | Install a package at the version that matches our Expo SDK (use this instead of `npm install` for anything React Native) |
 
+### Troubleshooting: app won't open on your phone (timeout)
+
+Your phone can't reach your laptop over the network. This is common on campus Wi-Fi.
+
+1. Stop the server (Ctrl+C) and run `npx expo start --tunnel`. Say yes if it
+   offers to install `@expo/ngrok`, then scan the new QR code.
+2. Windows: allow Node.js through the firewall ("Allow an app through Windows
+   Firewall" → tick Node.js for Private and Public).
+3. Update Expo Go from the App Store / Play Store. An old Expo Go can't open an
+   SDK 57 project.
+4. To check the UI without a phone, press `w` to open it in the browser.
+
 ### Before the Supabase key is shared
 
 The login screen shows a **"Continue without account (dev only)"** button when
