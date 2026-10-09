@@ -1,0 +1,25 @@
+{
+  "expo": {
+    "name": "SYNCD",
+    "slug": "syncd-app",
+    "version": "0.1.0",
+    "orientation": "portrait",
+    "scheme": "syncd",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0a0e1a",
+    "ios": {
+      "supportsTablet": true
+    },
+    "android": {
+      "edgeToEdgeEnabled": true
+    },
+    "web": {
+      "bundler": "metro",
+      "output": "single"
+    },
+    "plugins": ["expo-router"],
+    "experiments": {
+      "typedRoutes": false
+    }
+  }
+}

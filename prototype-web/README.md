@@ -1,3 +1,5 @@
+> **Reference only.** This is the earlier Vite web prototype. The real app is the Expo project in [`../syncd-app`](../syncd-app) — see [`../SETUP.md`](../SETUP.md).
+
 # SYNCD — Frontend
 
 A React (Vite) frontend prototype for **SYNCD**, the SP-27 group project. This
