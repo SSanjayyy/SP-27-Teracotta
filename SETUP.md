@@ -78,10 +78,39 @@ screens. It disappears as soon as `.env` is filled in.
 ### Supabase dashboard settings (for whoever owns the project)
 
 - **Authentication → Sign In / Providers → Email** must be enabled.
-- **"Confirm email"**: if on, new users must click an email link before they
+- **"Confirm email"** (under **Sign In / Providers → User Signups**, not inside
+  the Email panel): if on, new users must click an email link before they
   can log in (the app tells them this). For class demos it's easier to turn it off.
 - Use the **publishable** (`sb_publishable_…`) or legacy **anon** key in `.env`.
   Never the secret / service_role key.
+
+### Database tables (Supabase)
+
+The schema lives in `supabase/migrations/`. Our shared project already has it —
+ask Maurice for the project URL + publishable key. To set up a fresh project:
+
+1. Supabase dashboard → **SQL Editor** → **New query**.
+2. Paste the whole `supabase/migrations/20261009000000_initial_schema.sql` file → **Run**.
+   Expect "Success. No rows returned". Run it only once per project.
+3. Check it with:
+
+   ```sql
+   select tablename, rowsecurity from pg_tables where schemaname = 'public';
+   ```
+
+   You should see 9 tables, all with `rowsecurity = true`.
+
+What it creates:
+
+| Table | Who can see it |
+|---|---|
+| `profiles` | Your own row. Created automatically when you sign up. You can't change your own `subscription_tier`. |
+| `artists`, `albums`, `tracks` | Any logged-in user can read. Only added through the dashboard. |
+| `playlists`, `playlist_tracks` | Only the owner (read, add, edit, delete). |
+| `listening_history`, `identify_logs`, `ad_impressions` | Only the owner (read and add). |
+
+Changes to the schema go in a **new** file in `supabase/migrations/` (newer
+timestamp at the front of the name) — don't edit one that's already been run.
 
 ---
 
