@@ -90,9 +90,12 @@ The schema lives in `supabase/migrations/`. Our shared project already has it �
 ask Maurice for the project URL + publishable key. To set up a fresh project:
 
 1. Supabase dashboard → **SQL Editor** → **New query**.
-2. Paste the whole `supabase/migrations/20261009000000_initial_schema.sql` file → **Run**.
-   Expect "Success. No rows returned". Run it only once per project.
-3. Check it with:
+2. Run each file in `supabase/migrations/` in order (oldest date first), one per query:
+   paste the whole file → **Run**. Expect "Success. No rows returned". Run each file only once per project.
+   - `20261009000000_initial_schema.sql`: tables and security rules
+   - `20261016000000_discovered_playlist_and_covers.sql`: the "Discovered" playlist and album covers
+3. Optional: run `supabase/seed.sql` to add sample songs.
+4. Check it with:
 
    ```sql
    select tablename, rowsecurity from pg_tables where schemaname = 'public';
@@ -106,11 +109,28 @@ What it creates:
 |---|---|
 | `profiles` | Your own row. Created automatically when you sign up. You can't change your own `subscription_tier`. |
 | `artists`, `albums`, `tracks` | Any logged-in user can read. Only added through the dashboard. |
-| `playlists`, `playlist_tracks` | Only the owner (read, add, edit, delete). |
+| `playlists`, `playlist_tracks` | Only the owner (read, add, rename, delete). Every user gets a "Discovered" playlist at sign-up that can't be deleted. |
 | `listening_history`, `identify_logs`, `ad_impressions` | Only the owner (read and add). |
 
 Changes to the schema go in a **new** file in `supabase/migrations/` (newer
 timestamp at the front of the name) — don't edit one that's already been run.
+
+### Using playlists in a screen
+
+Don't write database code in screens. Import from `lib/playlists.ts`:
+
+```ts
+import { getMyPlaylists, createPlaylist } from '@/lib/playlists';
+
+try {
+  const playlists = await getMyPlaylists(); // [{ id, name, songCount, imageUrl, isDiscovered, ... }]
+} catch (err) {
+  // err.message is safe to show the user
+}
+```
+
+Also there: `getDiscoveredPlaylist`, `renamePlaylist`, `deletePlaylist`,
+`getPlaylistTracks`, `addTrack`, `removeTrack`, `moveTrack`, `searchTracks`.
 
 ---
 
