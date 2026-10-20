@@ -1,5 +1,6 @@
 -- Adds the "Discovered" playlist (where the Identify feature saves songs) and album cover art.
--- Run once in Supabase: SQL Editor -> New query -> paste -> Run. Needs the initial schema first.
+-- To run: open the Supabase SQL Editor, start a new query, paste this file, and click Run.
+-- Run it once, after the initial schema.
 
 -- Album cover art so the app's cards and rows have an image to show.
 alter table public.albums add column cover_url text;

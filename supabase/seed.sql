@@ -1,7 +1,7 @@
 -- Sample songs so the app has something to show. Run after both migration files.
--- Run once in Supabase: SQL Editor -> New query -> paste -> Run.
+-- To run: open the Supabase SQL Editor, start a new query, paste this file, and click Run. Run it once.
 --
--- Noor: add more artists, albums and tracks by copying the pattern below (aim for 15-20 songs).
+-- To add more songs, copy the pattern below for each artist, album and track (aim for 15 to 20 songs).
 -- Albums and tracks find their artist/album by name, so spell names exactly the same each time.
 -- Genres should use the same words as the app's Search categories: Pop, Hip-Hop, Rock, R&B.
 -- cover_url can be any image link. The picsum ones are placeholders; a real album cover link is better.
