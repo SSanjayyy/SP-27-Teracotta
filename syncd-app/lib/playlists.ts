@@ -26,27 +26,27 @@ export type PlaylistTrack = {
   position: number;
 };
 
-const TRACK_FIELDS =
+export const TRACK_FIELDS =
   'id, title, genre, duration_seconds, audio_file_url, artists(name), albums(name, cover_url)';
 
-function ensureConfigured() {
+export function ensureConfigured() {
   if (!isSupabaseConfigured) {
     throw new Error('Supabase is not set up yet. Add the URL and key to syncd-app/.env.');
   }
 }
 
-function fail(action: string, error: { message: string; code?: string }): never {
+export function fail(action: string, error: { message: string; code?: string }): never {
   if (error.code === '23505') throw new Error('That song is already in this playlist.');
   throw new Error(`Couldn't ${action}: ${error.message}`);
 }
 
 // Supabase returns joined rows as an object, or sometimes as a one-item array.
-function one<T>(value: T | T[] | null | undefined): T | null {
+export function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
 }
 
-function toTrack(row: any, position: number): PlaylistTrack {
+export function toTrack(row: any, position: number): PlaylistTrack {
   const artist = one<{ name: string }>(row.artists);
   const album = one<{ name: string; cover_url: string | null }>(row.albums);
   return {

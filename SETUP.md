@@ -86,14 +86,15 @@ screens. It disappears as soon as `.env` is filled in.
 
 ### Database tables (Supabase)
 
-The schema lives in `supabase/migrations/`. Our shared project already has it —
-ask Maurice for the project URL + publishable key. To set up a fresh project:
+The schema lives in `supabase/migrations/`. Our shared project already has it, so
+ask the team for the project URL and publishable key. To set up a fresh project:
 
-1. Supabase dashboard → **SQL Editor** → **New query**.
+1. In the Supabase dashboard, open the **SQL Editor** and start a **New query**.
 2. Run each file in `supabase/migrations/` in order (oldest date first), one per query:
-   paste the whole file → **Run**. Expect "Success. No rows returned". Run each file only once per project.
+   paste the whole file and click **Run**. Expect "Success. No rows returned". Run each file only once per project.
    - `20261009000000_initial_schema.sql`: tables and security rules
    - `20261016000000_discovered_playlist_and_covers.sql`: the "Discovered" playlist and album covers
+   - `20261020000000_genre_breakdown.sql`: the genre breakdown for listening habits
 3. Optional: run `supabase/seed.sql` to add sample songs.
 4. Check it with:
 
@@ -113,7 +114,7 @@ What it creates:
 | `listening_history`, `identify_logs`, `ad_impressions` | Only the owner (read and add). |
 
 Changes to the schema go in a **new** file in `supabase/migrations/` (newer
-timestamp at the front of the name) — don't edit one that's already been run.
+timestamp at the front of the name). Don't edit one that's already been run.
 
 ### Using playlists in a screen
 
@@ -131,6 +132,10 @@ try {
 
 Also there: `getDiscoveredPlaylist`, `renamePlaylist`, `deletePlaylist`,
 `getPlaylistTracks`, `addTrack`, `removeTrack`, `moveTrack`, `searchTracks`.
+
+Listening history is in `lib/listening.ts`: call `logPlay(trackId)` when a song
+starts playing, `getRecentlyPlayed()` for Home's "Recently played", and
+`getGenreBreakdown()` for the Profile tab (returns `[{ genre, plays, percent }]`).
 
 ---
 

@@ -1,5 +1,5 @@
 -- SYNCD initial schema (from SP27-SYNC-Design, section 4.2 Data Design)
--- Run in Supabase: Dashboard -> SQL Editor -> New query -> paste -> Run.
+-- To run: open the Supabase SQL Editor, start a new query, paste this file, and click Run.
 --
 -- Changes from the design doc because we use Supabase Auth instead of Node/Express + JWT:
 --   * "User" is split: auth.users (managed by Supabase, holds email + hashed password)
