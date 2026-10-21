@@ -1,8 +1,8 @@
-
 import { useCallback, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,60 +12,94 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { router, useFocusEffect } from 'expo-router';
 
+import { CreatePlaylistModal } from '@/components/CreatePlaylistModal';
 import { IconButton } from '@/components/IconButton';
 import { PlaylistRow } from '@/components/PlaylistRow';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SectionHeader } from '@/components/SectionHeader';
+import { Button, Notice } from '@/components/ui';
 import { colors, radius, spacing } from '@/constants/theme';
 import { useAuth } from '@/context/auth';
-import { getMyPlaylists, type PlaylistSummary } from '@/lib/playlists';
+import {
+  createPlaylist,
+  getMyPlaylists,
+  type PlaylistSummary,
+} from '@/lib/playlists';
+
+function playlistSubtitle(playlist: PlaylistSummary): string {
+  const count = `${playlist.songCount} ${playlist.songCount === 1 ? 'song' : 'songs'}`;
+  return playlist.isDiscovered ? `${count} · Discovered` : count;
+}
 
 export default function LibraryScreen() {
   const { user } = useAuth();
-
-  const [activeFilter, setActiveFilter] = useState<
-    'Playlists' | 'Albums'
-  >('Playlists');
-
-  const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-
   const displayName =
     user?.user_metadata?.display_name ||
     user?.user_metadata?.username ||
     user?.email ||
     'User';
 
-  const loadPlaylists = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
+  const [activeFilter, setActiveFilter] = useState<'Playlists' | 'Albums'>(
+    'Playlists'
+  );
+  const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
+  const load = useCallback(async () => {
     try {
-      const result = await getMyPlaylists();
-      setPlaylists(result);
+      setError(null);
+      setPlaylists(await getMyPlaylists());
     } catch (err) {
       setError(
-        err instanceof Error
-          ? err.message
-          : 'Could not load your playlists. Please try again.',
+        err instanceof Error ? err.message : "Couldn't load your playlists."
       );
     } finally {
-      setIsLoading(false);
+      setLoading(false);
+      setRefreshing(false);
     }
   }, []);
 
+  // Reload whenever Library comes back into focus, so song counts and
+  // covers stay current after visiting a playlist.
   useFocusEffect(
     useCallback(() => {
-      loadPlaylists();
-    }, [loadPlaylists]),
+      void load();
+    }, [load])
   );
+
+  const openPlaylist = (playlist: PlaylistSummary) => {
+    router.push({
+      pathname: '/(tabs)/library/playlist/[id]',
+      params: { id: String(playlist.id), name: playlist.name },
+    });
+  };
+
+  const handleCreate = async (name: string) => {
+    // createPlaylist throws a readable Error; the modal shows it.
+    const playlist = await createPlaylist(name);
+    setPlaylists((current) => [...current, playlist]);
+    setCreating(false);
+    openPlaylist(playlist);
+  };
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => {
+              setRefreshing(true);
+              void load();
+            }}
+            tintColor={colors.electricGlow}
+          />
+        }
       >
         {/* Header */}
         <View style={styles.header}>
@@ -80,8 +114,8 @@ export default function LibraryScreen() {
           <IconButton
             name="add"
             size={28}
-            onPress={() => {}}
-            accessibilityLabel="Add to library"
+            onPress={() => setCreating(true)}
+            accessibilityLabel="Create playlist"
             backgroundColor="transparent"
           />
         </View>
@@ -95,10 +129,7 @@ export default function LibraryScreen() {
               <Pressable
                 key={filter}
                 onPress={() => setActiveFilter(filter)}
-                style={[
-                  styles.filterButton,
-                  selected && styles.activeFilter,
-                ]}
+                style={[styles.filterButton, selected && styles.activeFilter]}
                 accessibilityRole="button"
                 accessibilityState={{ selected }}
               >
@@ -117,11 +148,8 @@ export default function LibraryScreen() {
 
         {/* Create playlist */}
         <Pressable
-          style={({ pressed }) => [
-            styles.createCard,
-            pressed && styles.pressed,
-          ]}
-          onPress={() => {}}
+          style={({ pressed }) => [styles.createCard, pressed && styles.pressed]}
+          onPress={() => setCreating(true)}
           accessibilityRole="button"
           accessibilityLabel="Create playlist"
         >
@@ -137,77 +165,59 @@ export default function LibraryScreen() {
           </View>
         </Pressable>
 
+        {/* Section heading */}
         <SectionHeader
-          title={
-            activeFilter === 'Playlists'
-              ? 'Your Playlists'
-              : 'Your Albums'
-          }
+          title={activeFilter === 'Playlists' ? 'Your Playlists' : 'Your Albums'}
         />
 
+        {/* Playlist list or album empty state */}
         {activeFilter === 'Playlists' ? (
-          <View style={styles.playlistList}>
-            {isLoading ? (
-              <View style={styles.stateContainer}>
-                <ActivityIndicator
-                  size="small"
-                  color={colors.electric}
-                />
-                <Text style={styles.stateText}>
-                  Loading your playlists...
-                </Text>
-              </View>
-            ) : error ? (
-              <View style={styles.stateContainer}>
-                <Text style={styles.emptyTitle}>
-                  Couldn’t load playlists
-                </Text>
-                <Text style={styles.stateText}>{error}</Text>
-                <Pressable
-                  onPress={loadPlaylists}
-                  style={styles.retryButton}
-                  accessibilityRole="button"
-                >
-                  <Text style={styles.retryText}>Try again</Text>
-                </Pressable>
-              </View>
-            ) : playlists.length === 0 ? (
-              <View style={styles.emptyState}>
-                <Ionicons
-                  name="musical-notes-outline"
-                  size={42}
-                  color={colors.textFaint}
-                />
-                <Text style={styles.emptyTitle}>
-                  Nothing here yet
-                </Text>
-                <Text style={styles.emptyText}>
-                  Your playlists will appear here when you create them.
-                </Text>
-              </View>
-            ) : (
-              playlists.map((playlist) => (
+          loading ? (
+            <View style={styles.centered}>
+              <ActivityIndicator color={colors.electricGlow} />
+            </View>
+          ) : error ? (
+            <View style={styles.errorBlock}>
+              <Notice tone="error">{error}</Notice>
+              <Button
+                label="Try again"
+                variant="secondary"
+                size="sm"
+                fullWidth={false}
+                onPress={() => {
+                  setLoading(true);
+                  void load();
+                }}
+              />
+            </View>
+          ) : playlists.length === 0 ? (
+            <View style={styles.emptyState}>
+              <Ionicons
+                name="musical-notes-outline"
+                size={42}
+                color={colors.textFaint}
+              />
+              <Text style={styles.emptyTitle}>No playlists yet</Text>
+              <Text style={styles.emptyText}>
+                Tap Create Playlist to make your first one.
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.playlistList}>
+              {playlists.map((playlist) => (
                 <PlaylistRow
                   key={playlist.id}
                   title={playlist.name}
-                  subtitle={
-                    playlist.isDiscovered
-                      ? `${playlist.songCount} songs · Discovered`
-                      : `${playlist.songCount} songs`
-                  }
+                  subtitle={playlistSubtitle(playlist)}
                   imageUrl={playlist.imageUrl ?? undefined}
-                  onMenuPress={() => {}}
+                  onPress={() => openPlaylist(playlist)}
                 />
-              ))
-            )}
-          </View>
+              ))}
+            </View>
+          )
         ) : (
           <View style={styles.emptyState}>
-            <Ionicons
-              name="disc-outline"
-              size={42}
-              color={colors.textFaint}
-            />
+            <Ionicons name="disc-outline" size={42} color={colors.textFaint} />
             <Text style={styles.emptyTitle}>No saved albums yet</Text>
             <Text style={styles.emptyText}>
               Albums you save will appear here.
@@ -215,6 +225,12 @@ export default function LibraryScreen() {
           </View>
         )}
       </ScrollView>
+
+      <CreatePlaylistModal
+        visible={creating}
+        onClose={() => setCreating(false)}
+        onCreate={handleCreate}
+      />
     </SafeAreaView>
   );
 }
@@ -294,19 +310,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: spacing.xs,
   },
+  centered: {
+    paddingVertical: spacing.xl,
+    alignItems: 'center',
+  },
+  errorBlock: {
+    gap: spacing.md,
+    alignItems: 'flex-start',
+  },
   playlistList: {
     gap: spacing.xs,
-  },
-  stateContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: spacing.xl,
-    gap: spacing.sm,
-  },
-  stateText: {
-    color: colors.textMuted,
-    fontSize: 13,
-    textAlign: 'center',
   },
   emptyState: {
     alignItems: 'center',
@@ -322,18 +335,6 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
-  },
-  retryButton: {
-    backgroundColor: colors.surface,
-    borderRadius: radius.md,
-    paddingHorizontal: spacing.md,
-    paddingVertical: spacing.sm,
-    marginTop: spacing.xs,
-  },
-  retryText: {
-    color: colors.electricGlow,
-    fontSize: 14,
-    fontWeight: '600',
   },
   pressed: {
     opacity: 0.75,
