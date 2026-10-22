@@ -1,3 +1,4 @@
+
 import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { router } from 'expo-router';
@@ -7,6 +8,7 @@ import { PlaylistCard } from '@/components/PlaylistCard';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { colors, spacing } from '@/constants/theme';
+import { useAuth } from '@/context/auth';
 
 type Album = {
   id: string;
@@ -99,6 +101,14 @@ function AlbumRow({ albums }: { albums: Album[] }) {
 }
 
 export default function HomeScreen() {
+  const { user } = useAuth();
+
+  const displayName =
+    user?.user_metadata?.display_name ||
+    user?.user_metadata?.username ||
+    user?.email ||
+    'User';
+
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
       <ScrollView
@@ -108,7 +118,7 @@ export default function HomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <ProfileAvatar
-            name="Donalthea"
+            name={displayName}
             size={42}
             onPress={() => router.push('/(tabs)/profile')}
           />

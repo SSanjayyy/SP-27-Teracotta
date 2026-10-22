@@ -1,5 +1,7 @@
-import { useState } from 'react';
+
+import { useCallback, useState } from 'react';
 import {
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -8,45 +10,56 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 import { IconButton } from '@/components/IconButton';
 import { PlaylistRow } from '@/components/PlaylistRow';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SectionHeader } from '@/components/SectionHeader';
 import { colors, radius, spacing } from '@/constants/theme';
-
-const playlists = [
-  {
-    id: '1',
-    name: 'Liked Songs',
-    image: 'https://picsum.photos/200?31',
-    subtitle: 'Your favorite tracks',
-  },
-  {
-    id: '2',
-    name: 'Chill Vibes',
-    image: 'https://picsum.photos/200?32',
-    subtitle: 'Relax and unwind',
-  },
-  {
-    id: '3',
-    name: 'Daily Mix',
-    image: 'https://picsum.photos/200?33',
-    subtitle: 'Music picked for you',
-  },
-  {
-    id: '4',
-    name: 'Late Night Drive',
-    image: 'https://picsum.photos/200?34',
-    subtitle: 'Songs for the road',
-  },
-];
+import { useAuth } from '@/context/auth';
+import { getMyPlaylists, type PlaylistSummary } from '@/lib/playlists';
 
 export default function LibraryScreen() {
+  const { user } = useAuth();
+
   const [activeFilter, setActiveFilter] = useState<
     'Playlists' | 'Albums'
   >('Playlists');
+
+  const [playlists, setPlaylists] = useState<PlaylistSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const displayName =
+    user?.user_metadata?.display_name ||
+    user?.user_metadata?.username ||
+    user?.email ||
+    'User';
+
+  const loadPlaylists = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const result = await getMyPlaylists();
+      setPlaylists(result);
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Could not load your playlists. Please try again.',
+      );
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadPlaylists();
+    }, [loadPlaylists]),
+  );
 
   return (
     <SafeAreaView style={styles.screen} edges={['top']}>
@@ -57,7 +70,7 @@ export default function LibraryScreen() {
         {/* Header */}
         <View style={styles.header}>
           <ProfileAvatar
-            name="Donalthea"
+            name={displayName}
             size={42}
             onPress={() => router.push('/(tabs)/profile')}
           />
@@ -124,7 +137,6 @@ export default function LibraryScreen() {
           </View>
         </Pressable>
 
-        {/* Section heading */}
         <SectionHeader
           title={
             activeFilter === 'Playlists'
@@ -133,18 +145,61 @@ export default function LibraryScreen() {
           }
         />
 
-        {/* Playlist list or album empty state */}
         {activeFilter === 'Playlists' ? (
           <View style={styles.playlistList}>
-            {playlists.map((playlist) => (
-              <PlaylistRow
-                key={playlist.id}
-                title={playlist.name}
-                subtitle={playlist.subtitle}
-                imageUrl={playlist.image}
-                onMenuPress={() => {}}
-              />
-            ))}
+            {isLoading ? (
+              <View style={styles.stateContainer}>
+                <ActivityIndicator
+                  size="small"
+                  color={colors.electric}
+                />
+                <Text style={styles.stateText}>
+                  Loading your playlists...
+                </Text>
+              </View>
+            ) : error ? (
+              <View style={styles.stateContainer}>
+                <Text style={styles.emptyTitle}>
+                  Couldn’t load playlists
+                </Text>
+                <Text style={styles.stateText}>{error}</Text>
+                <Pressable
+                  onPress={loadPlaylists}
+                  style={styles.retryButton}
+                  accessibilityRole="button"
+                >
+                  <Text style={styles.retryText}>Try again</Text>
+                </Pressable>
+              </View>
+            ) : playlists.length === 0 ? (
+              <View style={styles.emptyState}>
+                <Ionicons
+                  name="musical-notes-outline"
+                  size={42}
+                  color={colors.textFaint}
+                />
+                <Text style={styles.emptyTitle}>
+                  Nothing here yet
+                </Text>
+                <Text style={styles.emptyText}>
+                  Your playlists will appear here when you create them.
+                </Text>
+              </View>
+            ) : (
+              playlists.map((playlist) => (
+                <PlaylistRow
+                  key={playlist.id}
+                  title={playlist.name}
+                  subtitle={
+                    playlist.isDiscovered
+                      ? `${playlist.songCount} songs · Discovered`
+                      : `${playlist.songCount} songs`
+                  }
+                  imageUrl={playlist.imageUrl ?? undefined}
+                  onMenuPress={() => {}}
+                />
+              ))
+            )}
           </View>
         ) : (
           <View style={styles.emptyState}>
@@ -242,6 +297,17 @@ const styles = StyleSheet.create({
   playlistList: {
     gap: spacing.xs,
   },
+  stateContainer: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
+  },
+  stateText: {
+    color: colors.textMuted,
+    fontSize: 13,
+    textAlign: 'center',
+  },
   emptyState: {
     alignItems: 'center',
     paddingVertical: spacing.xl,
@@ -256,6 +322,18 @@ const styles = StyleSheet.create({
     color: colors.textMuted,
     fontSize: 13,
     textAlign: 'center',
+  },
+  retryButton: {
+    backgroundColor: colors.surface,
+    borderRadius: radius.md,
+    paddingHorizontal: spacing.md,
+    paddingVertical: spacing.sm,
+    marginTop: spacing.xs,
+  },
+  retryText: {
+    color: colors.electricGlow,
+    fontSize: 14,
+    fontWeight: '600',
   },
   pressed: {
     opacity: 0.75,
