@@ -1,6 +1,6 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
-  Image,
+  ActivityIndicator,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -15,21 +15,14 @@ import { CategoryCard } from '@/components/CategoryCard';
 import { ProfileAvatar } from '@/components/ProfileAvatar';
 import { SearchBar } from '@/components/SearchBar';
 import { SectionHeader } from '@/components/SectionHeader';
+import { SongRow } from '@/components/SongRow';
 import { colors, radius, spacing } from '@/constants/theme';
+import { searchTracks, type PlaylistTrack } from '@/lib/playlists';
 
 type Category = {
   id: string;
   name: string;
   color: string;
-};
-
-type MusicResult = {
-  id: string;
-  title: string;
-  subtitle: string;
-  image: string;
-  type: 'Playlist' | 'Album' | 'Artist';
-  categories: string[];
 };
 
 const categories: Category[] = [
@@ -45,123 +38,56 @@ const categories: Category[] = [
   { id: '10', name: 'Discover', color: '#E35151' },
 ];
 
-const musicResults: MusicResult[] = [
-  {
-    id: '1',
-    title: 'Pop Hits',
-    subtitle: 'Popular pop favorites',
-    image: 'https://picsum.photos/300?61',
-    type: 'Playlist',
-    categories: ['Pop', 'Party'],
-  },
-  {
-    id: '2',
-    title: 'Chill Pop',
-    subtitle: 'Laid-back pop songs',
-    image: 'https://picsum.photos/300?62',
-    type: 'Playlist',
-    categories: ['Pop', 'Chill'],
-  },
-  {
-    id: '3',
-    title: 'Pop Essentials',
-    subtitle: 'A collection of pop music',
-    image: 'https://picsum.photos/300?63',
-    type: 'Album',
-    categories: ['Pop'],
-  },
-  {
-    id: '4',
-    title: 'Hip-Hop Mix',
-    subtitle: 'Hip-hop favorites',
-    image: 'https://picsum.photos/300?64',
-    type: 'Playlist',
-    categories: ['Hip-Hop', 'Workout'],
-  },
-  {
-    id: '5',
-    title: 'Late Night R&B',
-    subtitle: 'Smooth R&B sounds',
-    image: 'https://picsum.photos/300?65',
-    type: 'Album',
-    categories: ['R&B', 'Chill'],
-  },
-  {
-    id: '6',
-    title: 'Rock Classics',
-    subtitle: 'Rock through the years',
-    image: 'https://picsum.photos/300?66',
-    type: 'Playlist',
-    categories: ['Rock'],
-  },
-  {
-    id: '7',
-    title: 'Focus Flow',
-    subtitle: 'Music for concentration',
-    image: 'https://picsum.photos/300?67',
-    type: 'Playlist',
-    categories: ['Focus', 'Chill'],
-  },
-  {
-    id: '8',
-    title: 'Workout Energy',
-    subtitle: 'Keep moving',
-    image: 'https://picsum.photos/300?68',
-    type: 'Playlist',
-    categories: ['Workout', 'Hip-Hop', 'Pop'],
-  },
-  {
-    id: '9',
-    title: 'Party Starters',
-    subtitle: 'Get the party going',
-    image: 'https://picsum.photos/300?69',
-    type: 'Playlist',
-    categories: ['Party', 'Pop', 'Hip-Hop'],
-  },
-  {
-    id: '10',
-    title: 'Daily Discoveries',
-    subtitle: 'Find something new',
-    image: 'https://picsum.photos/300?70',
-    type: 'Playlist',
-    categories: ['Discover'],
-  },
-  {
-    id: '11',
-    title: 'Podcast Picks',
-    subtitle: 'Shows worth a listen',
-    image: 'https://picsum.photos/300?71',
-    type: 'Playlist',
-    categories: ['Podcasts'],
-  },
-];
-
 export default function SearchScreen() {
   const [query, setQuery] = useState('');
-  const isSearching = query.trim().length > 0;
-  const normalizedQuery = query.trim().toLowerCase();
+  const [tracks, setTracks] = useState<PlaylistTrack[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  const filteredResults = useMemo(() => {
-    if (!normalizedQuery) return [];
+  const trimmedQuery = query.trim();
+  const isSearching = trimmedQuery.length > 0;
 
-    const matchingCategory = categories.find(
-      (category) => category.name.toLowerCase() === normalizedQuery
-    );
+  useEffect(() => {
+    let cancelled = false;
 
-    return musicResults.filter((result) => {
-      if (matchingCategory) {
-        return result.categories.includes(matchingCategory.name);
+    if (!trimmedQuery) {
+      setTracks([]);
+      setLoading(false);
+      setError(null);
+      return;
+    }
+
+    const timeout = setTimeout(async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const results = await searchTracks(trimmedQuery, 30);
+
+        if (!cancelled) {
+          setTracks(results);
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setTracks([]);
+          setError(
+            err instanceof Error
+              ? err.message
+              : 'Something went wrong while searching. Please try again.',
+          );
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
+    }, 300);
 
-      return (
-        result.title.toLowerCase().includes(normalizedQuery) ||
-        result.subtitle.toLowerCase().includes(normalizedQuery) ||
-        result.categories.some((category) =>
-          category.toLowerCase().includes(normalizedQuery)
-        )
-      );
-    });
-  }, [normalizedQuery]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeout);
+    };
+  }, [trimmedQuery]);
 
   const clearSearch = () => setQuery('');
 
@@ -208,21 +134,40 @@ export default function SearchScreen() {
           </>
         ) : (
           <View style={styles.resultsSection}>
-            <SectionHeader
-              title={
-                categories.some(
-                  (category) =>
-                    category.name.toLowerCase() === normalizedQuery
-                )
-                  ? `${query.trim()} Music`
-                  : 'Search Results'
-              }
-            />
+            <SectionHeader title="Search Results" />
 
-            {filteredResults.length > 0 ? (
+            {loading ? (
+              <View style={styles.statusState}>
+                <ActivityIndicator
+                  size="large"
+                  color={colors.electric}
+                />
+                <Text style={styles.statusText}>Searching for songs...</Text>
+              </View>
+            ) : error ? (
+              <View style={styles.statusState}>
+                <Ionicons
+                  name="alert-circle-outline"
+                  size={38}
+                  color={colors.danger}
+                />
+
+                <Text style={styles.emptyTitle}>Search unavailable</Text>
+
+                <Text style={styles.emptyText}>{error}</Text>
+
+                <Pressable
+                  onPress={() => setQuery((current) => `${current} `)}
+                  accessibilityRole="button"
+                  style={styles.clearButton}
+                >
+                  <Text style={styles.clearButtonText}>Try again</Text>
+                </Pressable>
+              </View>
+            ) : tracks.length > 0 ? (
               <View style={styles.resultsList}>
-                {filteredResults.map((result) => (
-                  <SearchResultRow key={result.id} result={result} />
+                {tracks.map((track) => (
+                  <SongRow key={track.id} track={track} />
                 ))}
               </View>
             ) : (
@@ -233,10 +178,10 @@ export default function SearchScreen() {
                   color={colors.textFaint}
                 />
 
-                <Text style={styles.emptyTitle}>No results found</Text>
+                <Text style={styles.emptyTitle}>No songs found</Text>
 
                 <Text style={styles.emptyText}>
-                  Try another search to discover more music.
+                  Try another song title or check your spelling.
                 </Text>
 
                 <Pressable
@@ -256,57 +201,6 @@ export default function SearchScreen() {
         )}
       </ScrollView>
     </SafeAreaView>
-  );
-}
-
-function SearchResultRow({ result }: { result: MusicResult }) {
-  const [imageFailed, setImageFailed] = useState(false);
-
-  return (
-    <Pressable
-      style={({ pressed }) => [
-        styles.resultRow,
-        pressed && styles.pressed,
-      ]}
-      onPress={() => {
-        // Detail screens and playback will be connected later.
-      }}
-      accessibilityRole="button"
-      accessibilityLabel={`${result.title}, ${result.type}`}
-    >
-      {imageFailed ? (
-        <View style={[styles.resultImage, styles.imageFallback]}>
-          <Ionicons
-            name="musical-notes"
-            size={24}
-            color={colors.textMuted}
-          />
-        </View>
-      ) : (
-        <Image
-          source={{ uri: result.image }}
-          style={styles.resultImage}
-          resizeMode="cover"
-          onError={() => setImageFailed(true)}
-        />
-      )}
-
-      <View style={styles.resultInfo}>
-        <Text style={styles.resultTitle} numberOfLines={1}>
-          {result.title}
-        </Text>
-
-        <Text style={styles.resultSubtitle} numberOfLines={2}>
-          {result.type} · {result.subtitle}
-        </Text>
-      </View>
-
-      <Ionicons
-        name="chevron-forward"
-        size={20}
-        color={colors.textFaint}
-      />
-    </Pressable>
   );
 }
 
@@ -346,37 +240,15 @@ const styles = StyleSheet.create({
   resultsList: {
     gap: spacing.xs,
   },
-  resultRow: {
-    flexDirection: 'row',
+  statusState: {
     alignItems: 'center',
-    gap: spacing.md,
-    minHeight: 72,
-    borderRadius: radius.sm,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.xl,
+    gap: spacing.sm,
   },
-  resultImage: {
-    width: 60,
-    height: 60,
-    borderRadius: radius.sm,
-    backgroundColor: colors.surface,
-  },
-  imageFallback: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  resultInfo: {
-    flex: 1,
-    minWidth: 0,
-    gap: spacing.xs,
-  },
-  resultTitle: {
-    color: colors.text,
-    fontSize: 15,
-    fontWeight: '600',
-  },
-  resultSubtitle: {
+  statusText: {
     color: colors.textMuted,
-    fontSize: 12,
-    lineHeight: 17,
+    fontSize: 14,
   },
   emptyState: {
     alignItems: 'center',
