@@ -95,6 +95,10 @@ ask the team for the project URL and publishable key. To set up a fresh project:
    - `20261009000000_initial_schema.sql`: tables and security rules
    - `20261016000000_discovered_playlist_and_covers.sql`: the "Discovered" playlist and album covers
    - `20261020000000_genre_breakdown.sql`: the genre breakdown for listening habits
+   - `20261110000000_pet_companion.sql`: the pet, check-ins, streaks, keepsakes, Spotify
+     connection and reminders (only adds things, so it's safe on the shared project). It also
+     schedules a daily pg_cron job; if you see a notice that pg_cron isn't enabled, turn it on
+     under **Database → Extensions → pg_cron** and run the last `do $$ ... $$;` block again.
 3. Optional: run `supabase/seed.sql` to add sample songs.
 4. Check it with:
 
@@ -102,7 +106,9 @@ ask the team for the project URL and publishable key. To set up a fresh project:
    select tablename, rowsecurity from pg_tables where schemaname = 'public';
    ```
 
-   You should see 9 tables, all with `rowsecurity = true`.
+   You should see 15 tables, all with `rowsecurity = true`.
+5. Run `supabase/tests/security_checks.sql` the same way. It ends with
+   "ALL SECURITY CHECKS PASSED" and rolls everything back, so it leaves no test data.
 
 What it creates:
 
@@ -112,6 +118,12 @@ What it creates:
 | `artists`, `albums`, `tracks` | Any logged-in user can read. Only added through the dashboard. |
 | `playlists`, `playlist_tracks` | Only the owner (read, add, rename, delete). Every user gets a "Discovered" playlist at sign-up that can't be deleted. |
 | `listening_history`, `identify_logs`, `ad_impressions` | Only the owner (read and add). |
+| `pets`, `check_ins`, `daily_summaries`, `keepsakes` | Only the owner, read only. Changes go through the database functions, so nobody can edit their own streak or growth. |
+| `notification_prefs` | Only the owner (read, add, change). |
+| `spotify_connections` | Nobody in the app, not even the owner. Only edge functions can read the tokens. |
+
+What each pet table and function is for, and which `lib/` function each screen calls, is in
+`docs/SCHEMA_FOR_SANJAY.md`.
 
 Changes to the schema go in a **new** file in `supabase/migrations/` (newer
 timestamp at the front of the name). Don't edit one that's already been run.
@@ -136,6 +148,87 @@ Also there: `getDiscoveredPlaylist`, `renamePlaylist`, `deletePlaylist`,
 Listening history is in `lib/listening.ts`: call `logPlay(trackId)` when a song
 starts playing, `getRecentlyPlayed()` for Home's "Recently played", and
 `getGenreBreakdown()` for the Profile tab (returns `[{ genre, plays, percent }]`).
+
+The pet, check-in, Spotify and reminder functions are in `lib/pet.ts`, `lib/spotify.ts`
+and `lib/reminders.ts`. See `docs/SCHEMA_FOR_SANJAY.md` for which one each screen calls.
+
+### Edge functions & Spotify
+
+Spotify login and data go through three Supabase Edge Functions in `supabase/functions/`, so
+the Spotify tokens never sit in the app:
+
+| Function | What it does |
+|---|---|
+| `spotify-auth` | Finishes "Connect Spotify": swaps the login code for tokens, saves them, returns the Spotify display name |
+| `spotify-data` | Recently played songs and top artists (20 each at most), refreshing the token when needed. `?demo=1` returns fictional demo data |
+| `delete-account` | Deletes the logged-in user and everything they own |
+
+Shared code is in `supabase/functions/_shared/`.
+
+**1. Spotify Developer Dashboard** (https://developer.spotify.com/dashboard, whoever owns the app):
+
+- Open the app → **Settings** → **Redirect URIs** and add every address the app logs in from:
+  - `syncd://spotify-callback` (phone builds; `syncd` is the scheme in `app.json`)
+  - `http://localhost:8081/spotify-callback` (Expo web on your machine)
+  - In Expo Go the address looks like `exp://192.168.x.x:8081/--/spotify-callback`. Print
+    `AuthSession.makeRedirectUri({ scheme: 'syncd', path: 'spotify-callback' })` once and add
+    exactly what it shows.
+- **APIs used:** Web API.
+- **User Management:** add each tester's Spotify email (dev mode allows only a few users;
+  anyone not on the list gets an error when connecting).
+- Copy the **Client ID**. You don't need the Client Secret: the app uses PKCE.
+
+**2. Supabase CLI** (one time): `npm install -g supabase` (or use `npx supabase ...`), then
+
+```bash
+supabase login
+supabase link --project-ref unwytogkxdmmjmpiqxkm
+```
+
+**3. Secrets** (stored by Supabase, never in the app or the repo):
+
+```bash
+# Required: the Spotify app's Client ID
+supabase secrets set SPOTIFY_CLIENT_ID=your-client-id
+# Required: the redirect URIs logins may use (comma-separated, no spaces). Must match the
+# Spotify dashboard exactly. If this is missing or empty, EVERY login is refused.
+supabase secrets set SPOTIFY_REDIRECT_URIS=syncd://spotify-callback,http://localhost:8081/spotify-callback
+# Required: the key that encrypts Spotify tokens in the database (32 random bytes, base64).
+# Run this once and don't change it: changing it means everyone has to connect Spotify again.
+supabase secrets set TOKEN_ENCRYPTION_KEY=$(openssl rand -base64 32)
+# Optional: if Spotify fails, return demo data instead of an error (good for class demos)
+supabase secrets set DEMO_MODE=true
+```
+
+On Windows without `openssl`, run this in PowerShell to make the key, then pass it to
+`supabase secrets set TOKEN_ENCRYPTION_KEY=...`:
+`$b = New-Object byte[] 32; [Security.Cryptography.RandomNumberGenerator]::Create().GetBytes($b); [Convert]::ToBase64String($b)`.
+(Git Bash includes `openssl`, so the command above works there too.)
+
+`SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` are provided to edge functions automatically.
+There is no client secret: login uses PKCE only.
+
+**4. Deploy** (again after any change to `supabase/functions/`):
+
+```bash
+supabase functions deploy spotify-auth
+supabase functions deploy spotify-data
+supabase functions deploy delete-account
+```
+
+**5. The app:** in `syncd-app/.env` set `EXPO_PUBLIC_SPOTIFY_CLIENT_ID` (see `.env.example`)
+and install the login packages:
+
+```bash
+npx expo install expo-auth-session expo-crypto expo-web-browser
+```
+
+**Demo mode:** `EXPO_PUBLIC_DEMO_MODE=true` in `syncd-app/.env` makes the app use fictional
+songs with no Spotify calls. With no Supabase keys either, the pet lives on the phone only.
+
+**Spotify data rules:** we only ask for `user-read-recently-played` and `user-top-read`, show
+at most 20 items of Spotify content in a list, delete all Spotify data when the user
+disconnects, and clear song details older than 8 weeks every night (pg_cron).
 
 ---
 
