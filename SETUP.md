@@ -10,9 +10,9 @@ created, so we can repeat it or write it up later.
 
 ### Prerequisites (one time)
 
-- **Node.js 20 LTS or newer** — https://nodejs.org (check with `node -v`)
+- **Node.js 22 LTS or newer** (upgrade was done on v24.21.0) — https://nodejs.org (check with `node -v`)
 - **Git** — check with `git --version`
-- **Expo Go** on your phone (App Store / Google Play), *or* an Android emulator / iOS simulator
+- A web browser (Chrome recommended). Expo Go can't open SDK 58 projects from the app stores, so run the web version.
 - A code editor (VS Code recommended)
 
 ### Steps
@@ -25,25 +25,47 @@ cd SP-27-Teracotta/syncd-app
 # 2. Install dependencies
 npm install
 
-# 3. Make sure every Expo package matches our SDK version (57)
-npx expo install --fix
-
-# 4. Set up Supabase keys (skip until the key is shared — the app still runs)
-cp .env.example .env          # Windows PowerShell: copy .env.example .env
+# 3. Set up Supabase keys (skip until the key is shared — the app still runs)
+cp .env.example .env          # Windows: copy .env.example .env
 #    then open .env and paste in EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_KEY
 
-# 5. Start the dev server
-npx expo start
-#    Scan the QR code with Expo Go (Android) or the Camera app (iOS).
-#    Press "a" for Android emulator, "i" for iOS simulator, "w" for web.
+# 4. Start the web version
+npx expo start --web --clear
 ```
 
-**First person to run `npm install`:** commit the generated `package-lock.json`
-so everyone installs the exact same versions:
+Open **http://localhost:8081/sign-in** in your browser (opening just
+`localhost:8081` shows "Unmatched Route" on SDK 58; use `/sign-in`).
+
+### How the project was upgraded from SDK 57 to SDK 58
+
+Run from `syncd-app/` (Node v24.21.0 was used):
 
 ```bash
-git add package-lock.json
-git commit -m "Add package-lock.json"
+npm install
+npx expo install expo@^58.0.0 --fix
+```
+
+The second command fails with `ERESOLVE` because the old SDK 57
+`package-lock.json` pins `@expo/ui` at version 57. Fix: delete the old install
+and lock file, then reinstall (Windows commands shown):
+
+```bash
+rmdir /s /q node_modules
+del package-lock.json
+npm install
+npx expo install --fix
+```
+
+(macOS/Linux: `rm -rf node_modules package-lock.json`.)
+
+`npx expo install --fix` then updates `@types/react` and `typescript` to the
+SDK 58 versions. After that, start the web version (step 4 above).
+
+**Commit the upgrade** so everyone gets the same versions:
+
+```bash
+git add package.json package-lock.json
+git commit -m "Upgrade to Expo SDK 58"
 git push
 ```
 
@@ -65,9 +87,7 @@ Your phone can't reach your laptop over the network. This is common on campus Wi
    offers to install `@expo/ngrok`, then scan the new QR code.
 2. Windows: allow Node.js through the firewall ("Allow an app through Windows
    Firewall" → tick Node.js for Private and Public).
-3. Update Expo Go from the App Store / Play Store. An old Expo Go can't open an
-   SDK 57 project.
-4. To check the UI without a phone, press `w` to open it in the browser.
+3. To check the UI without a phone, press `w` to open it in the browser.
 
 ### Before the Supabase key is shared
 
